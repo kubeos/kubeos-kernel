@@ -1,20 +1,25 @@
 #!/bin/sh
-# KubeOS kernel flavour meta, postinst: guarantee an initramfs exists for the installed kernel.
+# KubeOS kernel flavour meta, postinst: guarantee an initramfs exists for every installed kernel.
 #
-# WHY    This is the one thing the kernel deb cannot be trusted with. It is built with
-#        `make deb-pkg` and declares NO Depends, so dpkg may configure it before
-#        initramfs-tools - and then its postinst finds no working initramfs-tools hook and
-#        silently builds nothing. Measured on the 2026-11-22 ISO build: the kernel was
-#        configured 116 log lines BEFORE initramfs-tools (build.log 1878 vs 1994), the
-#        initramfs-tools trigger then generated nothing (zero "update-initramfs: Generating"
-#        lines), and live-build's binary_syslinux failed the whole build with
-#        "ls: cannot access 'binary/live/initrd.img-*': No such file or directory".
-#        Debian's own kernel packages prevent this with "Depends: initramfs-tools"; because
-#        this package already Depends on the kernel image and on initramfs-tools, dpkg
-#        configures us last - so building the initramfs here is a guarantee, not a race.
-# SAFE   Idempotent (`update-initramfs -u` regenerates in place) and WARN-ONLY: a failed
-#        initramfs build must never abort a package install, because the rest of the node is
-#        fine and the next `apt` run or a manual `update-initramfs -u -k all` fixes it.
+# WHY    Nothing else does it reliably in a build chroot, and the two ways people assume it
+#        happens both silently do nothing:
+#          1. `update-initramfs -u` UPDATES ONLY an initrd that already exists - its version
+#             list is built by get_sorted_versions(), which keeps a version only when
+#             "${BOOTDIR}/initrd.img-$version" is present (read from
+#             /usr/sbin/update-initramfs.orig.initramfs-tools on trixie). On a fresh chroot
+#             that list is empty, so `-u -k all` exits 0 having generated nothing.
+#             Measured 2026-11-22: linux-image-kubeos 6.12.117-1kubeos2's postinst ran
+#             `update-initramfs -u -k all`, reported success, and /boot stayed without any
+#             initrd.img-*, so live-build's binary_syslinux failed the build with
+#             "ls: cannot access 'binary/live/initrd.img-*': No such file or directory".
+#          2. The KubeOS kernel deb is built with `make deb-pkg` and declares NO Depends, so
+#             dpkg may configure it before initramfs-tools, and then its own postinst runs
+#             with no working /etc/kernel/postinst.d hook and builds nothing.
+#        Creating one is `-c`. This script therefore uses `-c` for a kernel that has no initrd
+#        and `-u` for one that has (the same choice Debian's kernel hooks make), for every
+#        version `linux-version list` reports.
+# SAFE   Idempotent, and WARN-ONLY: a failed initramfs build must never abort a package
+#        install - the rest of the node is fine, and `update-initramfs -c -k all` fixes it.
 set -e
 
 # debhelper inserts its generated snippets here (systemd enable/reload, dpkg-maintscript
@@ -35,19 +40,48 @@ if [ ! -x /usr/sbin/update-initramfs ]; then
     exit 0
 fi
 
-if update-initramfs -u -k all; then
-    found=0
-    for initrd in /boot/initrd.img-*; do
-        if [ -f "$initrd" ]; then
-            log "initramfs present: $initrd"
-            found=1
-        fi
-    done
-    if [ "$found" = 0 ]; then
-        warn "update-initramfs succeeded but no /boot/initrd.img-* exists; the node may not boot"
+if [ -x /usr/bin/linux-version ]; then
+    versions=$(linux-version list 2>/dev/null) || versions=""
+else
+    # linux-base missing (it is a Depends, so this is only a safety net): let
+    # initramfs-tools pick the kernels itself.
+    versions=""
+fi
+
+built=0
+failed=0
+
+if [ -z "$versions" ]; then
+    if update-initramfs -c -k all; then
+        built=1
+    else
+        failed=1
+        warn "update-initramfs -c -k all failed; run it by hand before rebooting"
     fi
 else
-    warn "update-initramfs failed; run 'update-initramfs -u -k all' before rebooting"
+    for kernel in $versions; do
+        if [ ! -r "/boot/vmlinuz-$kernel" ]; then
+            continue
+        fi
+        if [ -e "/boot/initrd.img-$kernel" ]; then
+            update-initramfs -u -k "$kernel" || { failed=1; warn "update-initramfs -u -k $kernel failed"; }
+        else
+            update-initramfs -c -k "$kernel" || { failed=1; warn "update-initramfs -c -k $kernel failed"; }
+        fi
+    done
+fi
+
+for initrd in /boot/initrd.img-*; do
+    if [ -f "$initrd" ]; then
+        log "initramfs present: $initrd"
+        built=1
+    fi
+done
+
+if [ "$built" = 0 ]; then
+    warn "no /boot/initrd.img-* exists after this install; the node will not boot this kernel"
+elif [ "$failed" = 1 ]; then
+    warn "an initramfs update failed; re-run 'update-initramfs -c -k all' before rebooting"
 fi
 
 exit 0

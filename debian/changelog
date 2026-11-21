@@ -1,3 +1,17 @@
+kubeos-kernel (6.12.117-1kubeos3) trixie; urgency=medium
+
+  * Create the initramfs with -c, not -u. The 1kubeos2 postinst ran
+    "update-initramfs -u -k all" and reported success while generating nothing: on trixie,
+    -u only UPDATES an initrd that already exists (update-initramfs keeps a kernel version
+    only when ${BOOTDIR}/initrd.img-$version is present, in get_sorted_versions()), so on a
+    fresh build chroot the list is empty and the command exits 0 having done nothing. The
+    next ISO build still failed with "ls: cannot access 'binary/live/initrd.img-*'".
+    The postinst now walks "linux-version list" and uses -c for a kernel with no initrd and
+    -u for one that has it - the same choice Debian's own kernel hooks make - and prints what
+    it produced, so a build log shows "kubeos-kernel: initramfs present: /boot/initrd.img-...".
+
+ -- KubeOS <mail@kubeos.in>  Sun, 22 Nov 2026 01:32:00 +0530
+
 kubeos-kernel (6.12.117-1kubeos2) trixie; urgency=medium
 
   * The build no longer depends on dpkg configuring initramfs-tools before the kernel. It
