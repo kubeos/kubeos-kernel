@@ -1,0 +1,14 @@
+# The kernel a KubeOS node runs, and the exact file that carries it.
+#
+# FORMAT: <binary package> <version> <sha256 of the amd64 .deb>
+#
+# The .deb is built BY KUBEOS on the build VM from the upstream 6.12.117 tree with
+# CONFIG_LOCALVERSION="-kubeos" (make deb-pkg), and published to repo.kubeos.in. It is not
+# a mirror of a vendor kernel: Debian ships 6.12.117+deb13-amd64, a different package with a
+# different config, and a KubeOS node installs neither it nor the linux-image-amd64 meta.
+#
+# To move the kernel: build the new .deb, copy it to the builder's /root/kernel/, publish it
+# with bin/archive-publish.sh, update this file and debian/control's Depends (and the version
+# of this package, which always equals the kernel version), bump debian/changelog, build and
+# publish this metapackage. auto/config needs no change - it names the meta, not the kernel.
+linux-image-6.12.117-kubeos 6.12.117-1kubeos1  0df032006f30caf6e971a4777d1a6f07a7b8e3cf83f62309e981c6c72ec40102

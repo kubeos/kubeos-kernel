@@ -1,0 +1,39 @@
+Source: kubeos-kernel
+Section: kernel
+Priority: optional
+Maintainer: KubeOS <mail@kubeos.in>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://kubeos.in/
+
+Package: linux-image-kubeos
+Architecture: amd64
+Depends: ${misc:Depends}, linux-image-6.12.117-kubeos (= 6.12.117-1kubeos1)
+Conflicts: linux-image-amd64
+Description: KubeOS: the kernel flavour a KubeOS node boots
+ Names the exact kernel a KubeOS node runs, and is what makes "which kernel does this
+ KubeOS run?" answerable with one command:
+ .
+     dpkg-query -W linux-image-kubeos
+ .
+ The kernel itself is linux-image-6.12.117-kubeos, built by KubeOS from the upstream
+ 6.12.117 tree with CONFIG_LOCALVERSION="-kubeos" (so it appears as 6.12.117-kubeos in
+ uname -r) and only reachable from repo.kubeos.in, exactly like kubeos-kubernetes pins
+ Kubernetes: `apt upgrade` on a node can never move it to a kernel KubeOS has not vetted.
+ .
+ The package is named linux-image-kubeos, not kubeos-kernel, because live-build decides
+ which kernel an ISO gets from --linux-packages and --linux-flavours: it installs
+ "${--linux-packages}-${--linux-flavours}" and every later stage finds the kernel by
+ globbing vmlinuz-*<flavour>. The flavour therefore has to be "kubeos", and
+ --linux-packages "linux-image" turns that into the Debian-conventional name used here -
+ the same shape as linux-image-amd64. auto/config therefore never changes when the kernel
+ is rebuilt; only this package's dependency and version move.
+ .
+ Ship only one kernel on a node: this package conflicts with linux-image-amd64, because
+ the ISO's boot entries and initramfs are built for this kernel and a second, Debian one
+ would silently become the default at the next upgrade.
+ .
+ Secure Boot: the kernel is NOT signed. Debian's is, and an ISO carries shim, so on a
+ machine with UEFI Secure Boot enabled this kernel is refused at boot. Secure Boot must be
+ off on a KubeOS node (documented in docs/USER-GUIDE.md).

@@ -1,0 +1,18 @@
+linux-image-kubeos (6.12.117-1kubeos1) trixie; urgency=medium
+
+  * First release. KubeOS ships its own kernel (user decision 2026-11-22): the ISO installs
+    this flavour meta and gets linux-image-6.12.117-kubeos from repo.kubeos.in instead of
+    Debian's linux-image-amd64 from the trixie archive. The kernel version here always equals
+    the kernel it depends on, so one number answers "which kernel does this node run".
+  * Why the package is not called kubeos-kernel: live-build installs
+    "${--linux-packages}-${--linux-flavours}" and later stages find the kernel by globbing
+    vmlinuz-*<flavour>, so the flavour must be "kubeos" and --linux-packages "linux-image"
+    yields this name - the same convention as linux-image-amd64.
+  * Conflicts: linux-image-amd64, so a node cannot end up with a second, Debian kernel that
+    wins the GRUB default at the next upgrade while the ISO's cmdline and initramfs were
+    built for this one.
+  * KNOWN LIMIT: the kernel is unsigned, so Secure Boot must be off on a KubeOS node. That is
+    accepted for now (user decision 2026-11-22); signing it with a KubeOS key and MOK
+    enrolment is a separate piece of work.
+
+ -- KubeOS <mail@kubeos.in>  Sun, 22 Nov 2026 00:30:00 +0530
