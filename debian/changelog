@@ -1,4 +1,4 @@
-linux-image-kubeos (6.12.117-1kubeos1) trixie; urgency=medium
+kubeos-kernel (6.12.117-1kubeos1) trixie; urgency=medium
 
   * First release. KubeOS ships its own kernel (user decision 2026-11-22): the ISO installs
     this flavour meta and gets linux-image-6.12.117-kubeos from repo.kubeos.in instead of
