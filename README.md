@@ -38,6 +38,11 @@ the ISO would be built without a kernel at all.
 ## Moving the kernel
 
 1. Build the new kernel `.deb` and copy it to `/root/kernel/` on the build VM.
+   **Add `Depends: linux-base, kmod, initramfs-tools | linux-initramfs-tool` to its control**
+   (or keep installing through this meta): a `make deb-pkg` kernel declares no `Depends`, so
+   dpkg may configure it before `initramfs-tools` and no `/boot/initrd.img-*` is generated —
+   that is exactly what failed the 2026-11-22 ISO build. This package's `Depends` plus its
+   `postinst` (`update-initramfs -u -k all`) are what make it reliable today.
 2. Publish it: the archive publisher accepts `kubeos-*` and `*-kubeos` names, so no foreign-package
    exception is needed.
 3. Update [`KERNEL`](KERNEL) and `debian/control`'s `Depends`; set this package's version to the

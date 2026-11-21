@@ -1,0 +1,53 @@
+#!/bin/sh
+# KubeOS kernel flavour meta, postinst: guarantee an initramfs exists for the installed kernel.
+#
+# WHY    This is the one thing the kernel deb cannot be trusted with. It is built with
+#        `make deb-pkg` and declares NO Depends, so dpkg may configure it before
+#        initramfs-tools - and then its postinst finds no working initramfs-tools hook and
+#        silently builds nothing. Measured on the 2026-11-22 ISO build: the kernel was
+#        configured 116 log lines BEFORE initramfs-tools (build.log 1878 vs 1994), the
+#        initramfs-tools trigger then generated nothing (zero "update-initramfs: Generating"
+#        lines), and live-build's binary_syslinux failed the whole build with
+#        "ls: cannot access 'binary/live/initrd.img-*': No such file or directory".
+#        Debian's own kernel packages prevent this with "Depends: initramfs-tools"; because
+#        this package already Depends on the kernel image and on initramfs-tools, dpkg
+#        configures us last - so building the initramfs here is a guarantee, not a race.
+# SAFE   Idempotent (`update-initramfs -u` regenerates in place) and WARN-ONLY: a failed
+#        initramfs build must never abort a package install, because the rest of the node is
+#        fine and the next `apt` run or a manual `update-initramfs -u -k all` fixes it.
+set -e
+
+# debhelper inserts its generated snippets here (systemd enable/reload, dpkg-maintscript
+# helpers). It must sit before this script's own exits, otherwise they never run - that is
+# exactly how every KubeOS package once ended up with units debhelper never enabled.
+#DEBHELPER#
+
+warn() { printf 'kubeos-kernel: WARNING: %s\n' "$*" >&2; }
+log() { printf 'kubeos-kernel: %s\n' "$*"; }
+
+case "${1:-}" in
+    configure|abort-upgrade|abort-remove|abort-deconfigure) : ;;
+    *) exit 0 ;;
+esac
+
+if [ ! -x /usr/sbin/update-initramfs ]; then
+    warn "update-initramfs is not installed; no initramfs was built"
+    exit 0
+fi
+
+if update-initramfs -u -k all; then
+    found=0
+    for initrd in /boot/initrd.img-*; do
+        if [ -f "$initrd" ]; then
+            log "initramfs present: $initrd"
+            found=1
+        fi
+    done
+    if [ "$found" = 0 ]; then
+        warn "update-initramfs succeeded but no /boot/initrd.img-* exists; the node may not boot"
+    fi
+else
+    warn "update-initramfs failed; run 'update-initramfs -u -k all' before rebooting"
+fi
+
+exit 0

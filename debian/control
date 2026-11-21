@@ -9,7 +9,8 @@ Homepage: https://kubeos.in/
 
 Package: linux-image-kubeos
 Architecture: amd64
-Depends: ${misc:Depends}, linux-image-6.12.117-kubeos (= 6.12.117-1kubeos1)
+Depends: ${misc:Depends}, linux-image-6.12.117-kubeos (= 6.12.117-1kubeos1),
+ linux-base, kmod, initramfs-tools | linux-initramfs-tool
 Conflicts: linux-image-amd64
 Description: KubeOS: the kernel flavour a KubeOS node boots
  Names the exact kernel a KubeOS node runs, and is what makes "which kernel does this
@@ -33,6 +34,14 @@ Description: KubeOS: the kernel flavour a KubeOS node boots
  Ship only one kernel on a node: this package conflicts with linux-image-amd64, because
  the ISO's boot entries and initramfs are built for this kernel and a second, Debian one
  would silently become the default at the next upgrade.
+ .
+ The dependencies above are not decoration. The KubeOS kernel deb is built with
+ `make deb-pkg` and declares no Depends at all, so dpkg is free to configure it BEFORE
+ initramfs-tools - and then nothing generates /boot/initrd.img-<version>. Measured on the
+ 2026-11-22 ISO build: the kernel was configured 116 log lines before initramfs-tools, the
+ initramfs-tools trigger generated nothing, and live-build's binary_syslinux died with
+ "cannot access 'binary/live/initrd.img-*'". Declaring them here, plus the postinst that runs
+ update-initramfs, is what makes this package - not luck - produce a bootable kernel.
  .
  Secure Boot: the kernel is NOT signed. Debian's is, and an ISO carries shim, so on a
  machine with UEFI Secure Boot enabled this kernel is refused at boot. Secure Boot must be

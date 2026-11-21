@@ -1,3 +1,27 @@
+kubeos-kernel (6.12.117-1kubeos2) trixie; urgency=medium
+
+  * The build no longer depends on dpkg configuring initramfs-tools before the kernel. It
+    declares Depends: linux-base, kmod, initramfs-tools | linux-initramfs-tool and its
+    postinst runs update-initramfs -u -k all, so an initramfs for the KubeOS kernel is a
+    guarantee rather than a race.
+    Why it was needed, measured on the 2026-11-22 ISO build: the KubeOS kernel deb is built
+    with make deb-pkg and declares NO Depends, so dpkg configured
+    linux-image-6.12.117-kubeos 116 log lines BEFORE initramfs-tools; the kernel postinst
+    then found no working initramfs-tools hook and the initramfs-tools trigger generated
+    nothing (zero "update-initramfs: Generating" lines in build.log), so
+    chroot/boot had no initrd.img-* and live-build's binary_syslinux failed the whole build
+    with "ls: cannot access 'binary/live/initrd.img-*': No such file or directory".
+    Debian's own kernel packages avoid this with the same Depends; since this package is what
+    a KubeOS node and the ISO actually install, the guarantee lives here instead of requiring
+    the kernel deb to be rebuilt.
+  * Not the cause, for the record: the build log also downloads Debian's
+    linux-image-6.12.117+deb13-amd64. That is the debian-installer pool build
+    (installer_debian-installer, "apt-get ... --download-only"): the d-i environment needs a
+    Debian kernel and downloads it into binary/pool. It is never installed - the live
+    manifest carries only linux-image-6.12.117-kubeos - so no second kernel reached the ISO.
+
+ -- KubeOS <mail@kubeos.in>  Sun, 22 Nov 2026 01:20:00 +0530
+
 kubeos-kernel (6.12.117-1kubeos1) trixie; urgency=medium
 
   * First release. KubeOS ships its own kernel (user decision 2026-11-22): the ISO installs
